@@ -1,12 +1,23 @@
 # Subscription Billing Simulator
 
-A small Go REST API that simulates a subscription billing workflow: customers, subscriptions, failed payments, retry attempts, and event history.
+A small Go REST API that simulates a subscription billing workflow: customer creation, subscription lifecycle, failed payments, retry attempts, and event history.
+
+## Highlights
+
+- Implemented a Go-based REST API simulating subscription billing and recovery flows
+- Modeled customers, subscriptions, payments, retry attempts, and event history in PostgreSQL
+- Added idempotent payment failure and retry endpoints using idempotency keys
+- Built a reproducible local developer workflow with Docker Compose, startup migrations, and PowerShell verification commands
+- Organized the codebase into clear handler, service, repository, and model layers
 
 ## Features
 
 - Create customers
 - Create subscriptions
 - Fetch subscription details
+- Register failed payments
+- Run retry attempts
+- Reactivate subscriptions after retries
 - View subscription event history
 - Apply SQL migrations automatically on startup
 - Run locally with PostgreSQL via Docker Compose
@@ -80,7 +91,7 @@ Expected response:
 
 ## How to verify
 
-Run the API and then execute the following PowerShell commands:
+Run the API and then execute the following PowerShell commands.
 
 ```powershell
 # Health
@@ -119,11 +130,56 @@ $subscription = Invoke-RestMethod `
 
 $subscription
 
-# Get subscription
+# Fail payment
+$paymentFailBody = @{
+  subscription_id = $subscription.id
+  amount_cents    = 990
+  currency        = "EUR"
+  reason          = "card_declined"
+  idempotency_key = "fail-$($subscription.id)-001"
+} | ConvertTo-Json
+
+$paymentFailResult = Invoke-RestMethod `
+  -Uri "http://localhost:8080/payments/fail" `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body $paymentFailBody
+
+$paymentFailResult
+
+# Retry 1
+$retryBody1 = @{
+  subscription_id = $subscription.id
+  idempotency_key = "retry-$($subscription.id)-001"
+} | ConvertTo-Json
+
+$retryResult1 = Invoke-RestMethod `
+  -Uri "http://localhost:8080/retries/run" `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body $retryBody1
+
+$retryResult1
+
+# Retry 2
+$retryBody2 = @{
+  subscription_id = $subscription.id
+  idempotency_key = "retry-$($subscription.id)-002"
+} | ConvertTo-Json
+
+$retryResult2 = Invoke-RestMethod `
+  -Uri "http://localhost:8080/retries/run" `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body $retryBody2
+
+$retryResult2
+
+# Final subscription state
 $subscriptionDetails = Invoke-RestMethod "http://localhost:8080/subscriptions/$($subscription.id)"
 $subscriptionDetails
 
-# Get events
+# Events
 $events = Invoke-RestMethod "http://localhost:8080/subscriptions/$($subscription.id)/events"
 $events
 
@@ -131,10 +187,29 @@ $events
 Write-Host "Health: $($health.status)"
 Write-Host "Customer ID: $($customer.id)"
 Write-Host "Subscription ID: $($subscription.id)"
-Write-Host "Subscription status: $($subscriptionDetails.status)"
+Write-Host "Final subscription status: $($subscriptionDetails.status)"
 ```
 
-## Example API flow
+## Expected flow
+
+The expected lifecycle in the verification flow is:
+
+1. A customer is created.
+2. A subscription is created with status `active`.
+3. A failed payment is registered.
+4. A first retry attempt is processed.
+5. A second retry attempt is processed.
+6. The subscription is reactivated and ends in status `active`.
+7. Event history includes:
+   - `subscription_created`
+   - `payment_failed`
+   - `retry_processed`
+   - `retry_processed`
+   - `subscription_reactivated`
+
+## Example API requests
+
+### Create customer
 
 ```powershell
 $uniqueEmail = "anton+$(Get-Date -Format 'yyyyMMddHHmmss')@example.com"
@@ -144,12 +219,16 @@ $customerBody = @{
   name  = "Anton Gorshkov"
 } | ConvertTo-Json
 
-$customer = Invoke-RestMethod `
+Invoke-RestMethod `
   -Uri "http://localhost:8080/customers" `
   -Method POST `
   -ContentType "application/json" `
   -Body $customerBody
+```
 
+### Create subscription
+
+```powershell
 $subscriptionBody = @{
   customer_id  = $customer.id
   plan_code    = "basic-monthly"
@@ -157,13 +236,55 @@ $subscriptionBody = @{
   currency     = "EUR"
 } | ConvertTo-Json
 
-$subscription = Invoke-RestMethod `
+Invoke-RestMethod `
   -Uri "http://localhost:8080/subscriptions" `
   -Method POST `
   -ContentType "application/json" `
   -Body $subscriptionBody
+```
 
+### Fail payment
+
+```powershell
+$paymentFailBody = @{
+  subscription_id = $subscription.id
+  amount_cents    = 990
+  currency        = "EUR"
+  reason          = "card_declined"
+  idempotency_key = "fail-$($subscription.id)-001"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/payments/fail" `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body $paymentFailBody
+```
+
+### Run retry
+
+```powershell
+$retryBody = @{
+  subscription_id = $subscription.id
+  idempotency_key = "retry-$($subscription.id)-001"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Uri "http://localhost:8080/retries/run" `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body $retryBody
+```
+
+### Get subscription
+
+```powershell
 Invoke-RestMethod "http://localhost:8080/subscriptions/$($subscription.id)"
+```
+
+### Get events
+
+```powershell
 Invoke-RestMethod "http://localhost:8080/subscriptions/$($subscription.id)/events"
 ```
 
@@ -176,6 +297,14 @@ Start-Sleep -Seconds 15
 .\run.ps1
 ```
 
+## Notes
+
+- SQL migrations are applied automatically on startup.
+- The initial SQL scaffold is suitable for local development and repeated verification runs.
+- Use a unique email when creating a customer to avoid duplicate key errors on `customers.email`.
+- `payments/fail` and `retries/run` require `idempotency_key` in the request body.
+- The Docker Compose warning about `version` being obsolete can be removed by deleting the `version` field from `docker-compose.yml`.
+
 ## Current status
 
 Working:
@@ -183,25 +312,14 @@ Working:
 - customer creation
 - subscription creation
 - subscription fetch
-- event history fetch
-
-In progress:
 - failed payment flow
 - retry flow
-- improved validation and error handling
+- subscription reactivation
+- event history fetch
 
-## Notes
-
-- SQL migrations are applied automatically on startup.
-- The initial SQL scaffold is idempotent for local development.
-- Use a unique email when creating a customer to avoid duplicate key errors on `customers.email`.
-- The Docker Compose warning about `version` being obsolete can be removed by deleting the `version` field from `docker-compose.yml`.
-
-## Next improvements
-
-- Implement and verify failed payment flow
-- Implement and verify retry flow
-- Improve validation and API error messages
-- Add unit tests for service logic
-- Add integration tests for handlers and database
-- Introduce proper migration tracking
+Next improvements:
+- improve validation error messages
+- return more specific API errors for missing fields
+- add more integration tests
+- refine retry policy and billing rules
+- add seed data or example fixtures
