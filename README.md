@@ -7,7 +7,7 @@ A small Go REST API that simulates a subscription billing workflow: customer cre
 - Implemented a Go-based REST API simulating subscription billing and recovery flows
 - Modeled customers, subscriptions, payments, retry attempts, and event history in PostgreSQL
 - Added idempotent payment failure and retry endpoints using idempotency keys
-- Built a reproducible local developer workflow with Docker Compose, startup migrations, and PowerShell verification commands
+- Built a reproducible local developer workflow with Docker Compose, startup migrations, and PowerShell verification scripts
 - Organized the codebase into clear handler, service, repository, and model layers
 
 ## Features
@@ -38,11 +38,14 @@ subscription-billing-simulator/
 ├── cmd/
 ├── internal/
 ├── migrations/
+├── scripts/
+│   ├── run.ps1
+│   ├── migrate-up.ps1
+│   ├── migrate-down.ps1
+│   ├── smoke-test.ps1
+│   └── full-local-check.ps1
 ├── tests/
 ├── docker-compose.yml
-├── run.ps1
-├── migrate-up.ps1
-├── migrate-down.ps1
 ├── go.mod
 └── README.md
 ```
@@ -66,7 +69,7 @@ $env:AUTO_MIGRATE="true"
 ### 3. Start the API
 
 ```powershell
-.\run.ps1
+.\scripts\run.ps1
 ```
 
 If startup succeeds, the server should print:
@@ -91,104 +94,32 @@ Expected response:
 
 ## How to verify
 
-Run the API and then execute the following PowerShell commands.
+Use the helper scripts instead of running the whole flow manually.
+
+### Smoke test
 
 ```powershell
-# Health
-$health = Invoke-RestMethod "http://localhost:8080/health"
-$health
-
-# Create customer
-$uniqueEmail = "anton+$(Get-Date -Format 'yyyyMMddHHmmss')@example.com"
-
-$customerBody = @{
-  email = $uniqueEmail
-  name  = "Anton Gorshkov"
-} | ConvertTo-Json
-
-$customer = Invoke-RestMethod `
-  -Uri "http://localhost:8080/customers" `
-  -Method POST `
-  -ContentType "application/json" `
-  -Body $customerBody
-
-$customer
-
-# Create subscription
-$subscriptionBody = @{
-  customer_id  = $customer.id
-  plan_code    = "basic-monthly"
-  amount_cents = 990
-  currency     = "EUR"
-} | ConvertTo-Json
-
-$subscription = Invoke-RestMethod `
-  -Uri "http://localhost:8080/subscriptions" `
-  -Method POST `
-  -ContentType "application/json" `
-  -Body $subscriptionBody
-
-$subscription
-
-# Fail payment
-$paymentFailBody = @{
-  subscription_id = $subscription.id
-  amount_cents    = 990
-  currency        = "EUR"
-  reason          = "card_declined"
-  idempotency_key = "fail-$($subscription.id)-001"
-} | ConvertTo-Json
-
-$paymentFailResult = Invoke-RestMethod `
-  -Uri "http://localhost:8080/payments/fail" `
-  -Method POST `
-  -ContentType "application/json" `
-  -Body $paymentFailBody
-
-$paymentFailResult
-
-# Retry 1
-$retryBody1 = @{
-  subscription_id = $subscription.id
-  idempotency_key = "retry-$($subscription.id)-001"
-} | ConvertTo-Json
-
-$retryResult1 = Invoke-RestMethod `
-  -Uri "http://localhost:8080/retries/run" `
-  -Method POST `
-  -ContentType "application/json" `
-  -Body $retryBody1
-
-$retryResult1
-
-# Retry 2
-$retryBody2 = @{
-  subscription_id = $subscription.id
-  idempotency_key = "retry-$($subscription.id)-002"
-} | ConvertTo-Json
-
-$retryResult2 = Invoke-RestMethod `
-  -Uri "http://localhost:8080/retries/run" `
-  -Method POST `
-  -ContentType "application/json" `
-  -Body $retryBody2
-
-$retryResult2
-
-# Final subscription state
-$subscriptionDetails = Invoke-RestMethod "http://localhost:8080/subscriptions/$($subscription.id)"
-$subscriptionDetails
-
-# Events
-$events = Invoke-RestMethod "http://localhost:8080/subscriptions/$($subscription.id)/events"
-$events
-
-# Summary
-Write-Host "Health: $($health.status)"
-Write-Host "Customer ID: $($customer.id)"
-Write-Host "Subscription ID: $($subscription.id)"
-Write-Host "Final subscription status: $($subscriptionDetails.status)"
+.\scripts\smoke-test.ps1
 ```
+
+### Full local check
+
+This command starts PostgreSQL, starts the API, waits for `/health`, and then runs the smoke test.
+
+```powershell
+.\scripts\full-local-check.ps1
+```
+
+### What the smoke test covers
+
+- Health check
+- Customer creation
+- Subscription creation
+- Failed payment registration
+- Retry attempt 1
+- Retry attempt 2
+- Subscription reactivation
+- Event history fetch
 
 ## Expected flow
 
@@ -292,9 +223,7 @@ Invoke-RestMethod "http://localhost:8080/subscriptions/$($subscription.id)/event
 
 ```powershell
 docker compose down -v
-docker compose up -d db
-Start-Sleep -Seconds 15
-.\run.ps1
+.\scripts\full-local-check.ps1
 ```
 
 ## Notes

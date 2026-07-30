@@ -9,9 +9,13 @@ import (
 	"github.com/antoniooreany/subscription-billing-simulator/internal/shared"
 )
 
-type CustomerService struct{ repo *repository.CustomerRepository }
+type CustomerService struct {
+	repo *repository.CustomerRepository
+}
 
-func NewCustomerService(repo *repository.CustomerRepository) *CustomerService { return &CustomerService{repo: repo} }
+func NewCustomerService(repo *repository.CustomerRepository) *CustomerService {
+	return &CustomerService{repo: repo}
+}
 
 func (s *CustomerService) Create(ctx context.Context, email, name string) (model.Customer, error) {
 	if strings.TrimSpace(email) == "" || strings.TrimSpace(name) == "" {
