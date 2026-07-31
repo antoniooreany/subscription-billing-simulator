@@ -1,3 +1,4 @@
 
 api.stdout.log
 api.stderr.log
+scripts/review-ready.ps1
