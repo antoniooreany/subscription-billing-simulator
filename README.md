@@ -1,5 +1,57 @@
 # Subscription Billing Simulator
 
+
+## Release status
+
+Current release: `v0.1.0`
+
+### Included in v0.1.0
+- Go REST API for subscription billing workflow simulation.
+- PostgreSQL-backed data model for customers, subscriptions, payments, retry attempts, and events.
+- Auto-applied SQL migrations.
+- Docker Compose local environment.
+- Idempotent payment failure and retry endpoints.
+- End-to-end smoke test and review-ready local verification flow.
+
+## Quick start
+
+### Prerequisites
+- Go
+- Docker and Docker Compose
+- PowerShell or a POSIX shell
+
+### Run locally
+```bash
+docker compose up -d db
+```
+
+Set environment variables:
+
+```bash
+APP_PORT=8080
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/billing?sslmode=disable
+AUTO_MIGRATE=true
+```
+
+Start the API:
+
+```bash
+go run ./cmd/api
+```
+
+### Verify
+Health check:
+
+```bash
+curl http://localhost:8080/health
+```
+
+Run smoke test:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-test.ps1
+```
+
 A small Go REST API that simulates a subscription billing workflow: customer creation, subscription lifecycle, failed payments, retry attempts, and event history.
 
 ## Highlights
@@ -269,4 +321,5 @@ Next improvements:
 - add more integration tests
 - refine retry policy and billing rules
 - add seed data or example fixtures
+
 
