@@ -372,3 +372,6 @@ Next improvements:
 - add more integration tests
 - refine retry policy and billing rules
 - add seed data or example fixtures
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
