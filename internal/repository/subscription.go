@@ -12,7 +12,9 @@ import (
 
 type SubscriptionRepository struct{ db *pgxpool.Pool }
 
-func NewSubscriptionRepository(db *pgxpool.Pool) *SubscriptionRepository { return &SubscriptionRepository{db: db} }
+func NewSubscriptionRepository(db *pgxpool.Pool) *SubscriptionRepository {
+	return &SubscriptionRepository{db: db}
+}
 
 func (r *SubscriptionRepository) Create(ctx context.Context, s model.Subscription) (model.Subscription, error) {
 	_, err := r.db.Exec(ctx, `INSERT INTO subscriptions (id, customer_id, plan_code, amount_cents, currency, status) VALUES ($1, $2, $3, $4, $5, $6)`, s.ID, s.CustomerID, s.PlanCode, s.AmountCents, s.Currency, s.Status)

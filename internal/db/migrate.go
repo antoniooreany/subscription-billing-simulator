@@ -22,11 +22,14 @@ func ApplyMigrations(ctx context.Context, pool *pgxpool.Pool, dir string) error 
 		if entry.IsDir() {
 			continue
 		}
+
 		name := entry.Name()
-		if strings.HasSuffix(strings.ToLower(name), ".sql") {
+		lowerName := strings.ToLower(name)
+		if strings.HasSuffix(lowerName, ".up.sql") {
 			files = append(files, filepath.Join(dir, name))
 		}
 	}
+
 	sort.Strings(files)
 
 	for _, file := range files {
@@ -34,9 +37,11 @@ func ApplyMigrations(ctx context.Context, pool *pgxpool.Pool, dir string) error 
 		if err != nil {
 			return fmt.Errorf("read migration %s: %w", file, err)
 		}
+
 		if strings.TrimSpace(string(content)) == "" {
 			continue
 		}
+
 		if _, err := pool.Exec(ctx, string(content)); err != nil {
 			return fmt.Errorf("apply migration %s: %w", file, err)
 		}
