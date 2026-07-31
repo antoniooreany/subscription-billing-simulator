@@ -31,6 +31,23 @@ A small Go REST API that simulates a subscription billing workflow: customer cre
 - Docker Compose
 - PowerShell helpers for Windows
 
+## Architecture
+
+The API is organized into clear layers:
+
+- Handlers receive HTTP requests, decode input, and return JSON responses.
+- Services contain billing workflow logic such as failed payments, retry attempts, and subscription reactivation.
+- Repositories encapsulate PostgreSQL access through pgx.
+- Models define the domain entities shared across the application.
+
+## Design decisions
+
+- PostgreSQL is the source of truth for customers, subscriptions, payments, retry attempts, and events.
+- Idempotency keys are required for `payments/fail` and `retries/run` to avoid duplicate writes during retries.
+- Failed payments move subscriptions to `past_due`.
+- The second retry attempt reactivates the subscription and appends a `subscription_reactivated` event.
+- Event history is stored in the database so the billing flow can be inspected after each run.
+
 ## Project structure
 
 ```text
@@ -252,3 +269,4 @@ Next improvements:
 - add more integration tests
 - refine retry policy and billing rules
 - add seed data or example fixtures
+
