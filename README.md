@@ -1,5 +1,8 @@
 # Subscription Billing Simulator
 
+> For reviewers
+>
+> This repository contains a small Go REST API that simulates subscription billing flows with PostgreSQL and Docker Compose. To review the project quickly, follow the “Quick start” and “Reviewer checklist” sections below.
 
 ## Release status
 
@@ -56,23 +59,23 @@ A small Go REST API that simulates a subscription billing workflow: customer cre
 
 ## Highlights
 
-- Implemented a Go-based REST API simulating subscription billing and recovery flows
-- Modeled customers, subscriptions, payments, retry attempts, and event history in PostgreSQL
-- Added idempotent payment failure and retry endpoints using idempotency keys
-- Built a reproducible local developer workflow with Docker Compose, startup migrations, and PowerShell verification scripts
-- Organized the codebase into clear handler, service, repository, and model layers
+- Implemented a Go-based REST API simulating subscription billing and recovery flows.
+- Modeled customers, subscriptions, payments, retry attempts, and event history in PostgreSQL.
+- Added idempotent payment failure and retry endpoints using idempotency keys.
+- Built a reproducible local developer workflow with Docker Compose, startup migrations, and PowerShell verification scripts.
+- Organized the codebase into clear handler, service, repository, and model layers.
 
 ## Features
 
-- Create customers
-- Create subscriptions
-- Fetch subscription details
-- Register failed payments
-- Run retry attempts
-- Reactivate subscriptions after retries
-- View subscription event history
-- Apply SQL migrations automatically on startup
-- Run locally with PostgreSQL via Docker Compose
+- Create customers.
+- Create subscriptions.
+- Fetch subscription details.
+- Register failed payments.
+- Run retry attempts.
+- Reactivate subscriptions after retries.
+- View subscription event history.
+- Apply SQL migrations automatically on startup.
+- Run locally with PostgreSQL via Docker Compose.
 
 ## Stack
 
@@ -181,14 +184,14 @@ This command starts PostgreSQL, starts the API, waits for `/health`, and then ru
 
 ### What the smoke test covers
 
-- Health check
-- Customer creation
-- Subscription creation
-- Failed payment registration
-- Retry attempt 1
-- Retry attempt 2
-- Subscription reactivation
-- Event history fetch
+- Health check.
+- Customer creation.
+- Subscription creation.
+- Failed payment registration.
+- Retry attempt 1.
+- Retry attempt 2.
+- Subscription reactivation.
+- Event history fetch.
 
 ## Expected flow
 
@@ -207,6 +210,52 @@ The expected lifecycle in the verification flow is:
    - `retry_processed`
    - `subscription_reactivated`
 
+## Reviewer checklist
+
+You can use this short checklist to verify the project locally.
+
+1. Clone and checkout the release:
+   ```bash
+   git clone https://github.com/antoniooreany/subscription-billing-simulator.git
+   cd subscription-billing-simulator
+   git checkout v0.1.0
+   ```
+
+2. Start PostgreSQL:
+   ```bash
+   docker compose up -d db
+   ```
+
+3. Set environment variables:
+   ```bash
+   APP_PORT=8080
+   DATABASE_URL=postgres://postgres:postgres@localhost:5432/billing?sslmode=disable
+   AUTO_MIGRATE=true
+   ```
+
+4. Start the API:
+   ```bash
+   go run ./cmd/api
+   ```
+
+5. Run health check:
+   ```bash
+   curl http://localhost:8080/health
+   ```
+   Expected result: `{"status":"ok"}`
+
+6. Run the smoke test:
+   ```powershell
+   .\scripts\smoke-test.ps1
+   ```
+   Expected result: the script completes without errors and verifies the main billing flow.
+
+7. Optional full local verification:
+   ```powershell
+   .\scripts\full-local-check.ps1
+   ```
+   Expected result: PostgreSQL and the API are started, `/health` passes, and the smoke test runs end-to-end.
+
 ## Example API requests
 
 ### Create customer
@@ -216,7 +265,7 @@ $uniqueEmail = "anton+$(Get-Date -Format 'yyyyMMddHHmmss')@example.com"
 
 $customerBody = @{
   email = $uniqueEmail
-  name  = "Anton Gorshkov"
+  name = "Anton Gorshkov"
 } | ConvertTo-Json
 
 Invoke-RestMethod `
@@ -230,10 +279,10 @@ Invoke-RestMethod `
 
 ```powershell
 $subscriptionBody = @{
-  customer_id  = $customer.id
-  plan_code    = "basic-monthly"
+  customer_id = $customer.id
+  plan_code = "basic-monthly"
   amount_cents = 990
-  currency     = "EUR"
+  currency = "EUR"
 } | ConvertTo-Json
 
 Invoke-RestMethod `
@@ -248,9 +297,9 @@ Invoke-RestMethod `
 ```powershell
 $paymentFailBody = @{
   subscription_id = $subscription.id
-  amount_cents    = 990
-  currency        = "EUR"
-  reason          = "card_declined"
+  amount_cents = 990
+  currency = "EUR"
+  reason = "card_declined"
   idempotency_key = "fail-$($subscription.id)-001"
 } | ConvertTo-Json
 
@@ -306,6 +355,7 @@ docker compose down -v
 ## Current status
 
 Working:
+
 - health check
 - customer creation
 - subscription creation
@@ -316,10 +366,9 @@ Working:
 - event history fetch
 
 Next improvements:
+
 - improve validation error messages
 - return more specific API errors for missing fields
 - add more integration tests
 - refine retry policy and billing rules
 - add seed data or example fixtures
-
-
